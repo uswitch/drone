@@ -141,6 +141,11 @@ var flags = []cli.Flag{
 		Name:   "gating-service",
 		Usage:  "gated build endpoint",
 	},
+	cli.StringSliceFlag{
+		EnvVar: "DRONE_GLOBAL_ENV_VARS",
+		Name:   "global-env-vars",
+		Usage:  "gobal environment variable",
+	},
 	cli.StringFlag{
 		EnvVar: "DRONE_DATABASE_DRIVER,DATABASE_DRIVER",
 		Name:   "driver",

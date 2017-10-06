@@ -7,6 +7,7 @@ import (
 	"github.com/cncd/queue"
 	"github.com/dimfeld/httptreemux"
 	"github.com/drone/drone/model"
+	"github.com/drone/drone/plugins/environ"
 	"github.com/drone/drone/plugins/registry"
 	"github.com/drone/drone/plugins/secrets"
 	"github.com/drone/drone/remote"
@@ -45,7 +46,7 @@ func setupRegistryService(c *cli.Context, s store.Store) model.RegistryService {
 }
 
 func setupEnvironService(c *cli.Context, s store.Store) model.EnvironService {
-	return nil
+	return environ.NewStatic(c.StringSlice("global-env-vars"))
 }
 
 func setupLimiter(c *cli.Context, s store.Store) model.Limiter {
