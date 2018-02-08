@@ -99,10 +99,11 @@ func Load(mux *httptreemux.ContextMux, middleware ...gin.HandlerFunc) http.Handl
 		repo.POST("/move", session.MustRepoAdmin(), server.MoveRepo)
 
 		repo.POST("/builds/:number", session.MustPush, server.PostBuild)
-		repo.DELETE("/builds/:number", session.MustAdmin(), server.ZombieKill)
+		repo.DELETE("/builds/:number", session.MustRepoAdmin(), server.ZombieKill)
 		repo.POST("/builds/:number/approve", session.MustPush, server.PostApproval)
 		repo.POST("/builds/:number/decline", session.MustPush, server.PostDecline)
 		repo.DELETE("/builds/:number/:job", session.MustPush, server.DeleteBuild)
+		repo.DELETE("/logs/:number", session.MustPush, server.DeleteBuildLogs)
 	}
 
 	badges := e.Group("/api/badges/:owner/:name")
@@ -168,6 +169,9 @@ func Load(mux *httptreemux.ContextMux, middleware ...gin.HandlerFunc) http.Handl
 			metrics.PromHandler(),
 		)
 	}
+
+	e.GET("/version", server.Version)
+	e.GET("/healthz", server.Health)
 
 	return e
 }

@@ -482,6 +482,18 @@ func server(c *cli.Context) error {
 		logrus.Fatalln("DRONE_HOST is not properly configured")
 	}
 
+	if !strings.Contains(c.String("server-host"), "://") {
+		logrus.Fatalln(
+			"DRONE_HOST must be <scheme>://<hostname> format",
+		)
+	}
+
+	if strings.HasSuffix(c.String("server-host"), "/") {
+		logrus.Fatalln(
+			"DRONE_HOST must not have trailing slash",
+		)
+	}
+
 	remote_, err := SetupRemote(c)
 	if err != nil {
 		logrus.Fatal(err)
@@ -541,7 +553,7 @@ func server(c *cli.Context) error {
 	// start the server with tls enabled
 	if c.String("server-cert") != "" {
 		g.Go(func() error {
-			return http.ListenAndServe(":http", handler)
+			return http.ListenAndServe(":http", http.HandlerFunc(redirect))
 		})
 		g.Go(func() error {
 			serve := &http.Server{
@@ -569,24 +581,23 @@ func server(c *cli.Context) error {
 
 	// start the server with lets encrypt enabled
 	// listen on ports 443 and 80
+	address, err := url.Parse(c.String("server-host"))
+	if err != nil {
+		return err
+	}
+
+	dir := cacheDir()
+	os.MkdirAll(dir, 0700)
+
+	manager := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(address.Host),
+		Cache:      autocert.DirCache(dir),
+	}
 	g.Go(func() error {
-		return http.ListenAndServe(":http", handler)
+		return http.ListenAndServe(":http", manager.HTTPHandler(http.HandlerFunc(redirect)))
 	})
-
 	g.Go(func() error {
-		address, err := url.Parse(c.String("server-host"))
-		if err != nil {
-			return err
-		}
-
-		dir := cacheDir()
-		os.MkdirAll(dir, 0700)
-
-		manager := autocert.Manager{
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(address.Host),
-			Cache:      autocert.DirCache(dir),
-		}
 		serve := &http.Server{
 			Addr:    ":https",
 			Handler: handler,
@@ -679,6 +690,18 @@ func (a *authorizer) authorize(ctx context.Context) error {
 		return errors.New("invalid agent token")
 	}
 	return errors.New("missing agent token")
+}
+
+func redirect(w http.ResponseWriter, req *http.Request) {
+	var serverHost string = droneserver.Config.Server.Host
+	serverHost = strings.TrimPrefix(serverHost, "http://")
+	serverHost = strings.TrimPrefix(serverHost, "https://")
+	req.URL.Scheme = "https"
+	req.URL.Host = serverHost
+
+	w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+
+	http.Redirect(w, req, req.URL.String(), http.StatusMovedPermanently)
 }
 
 func cacheDir() string {

@@ -185,6 +185,10 @@ func (s *RPC) Update(c context.Context, id string, state rpc.State) error {
 		proc.State = model.StatusRunning
 	}
 
+	if proc.Started == 0 && proc.Stopped != 0 {
+		proc.Started = build.Started
+	}
+
 	if err := s.store.ProcUpdate(proc); err != nil {
 		log.Printf("error: rpc.update: cannot update proc: %s", err)
 	}
@@ -425,7 +429,7 @@ func (s *RPC) Done(c context.Context, id string, state rpc.State) error {
 			uri := fmt.Sprintf("%s/%s/%d", s.host, repo.FullName, build.Number)
 			err = s.remote.Status(user, repo, build, uri)
 			if err != nil {
-				logrus.Errorf("error setting commit status for %s/%d", repo.FullName, build.Number)
+				logrus.Errorf("error setting commit status for %s/%d: %v", repo.FullName, build.Number, err)
 			}
 		}
 	}
