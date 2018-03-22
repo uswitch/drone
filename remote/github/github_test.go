@@ -1,11 +1,11 @@
 // Copyright 2018 Drone.IO Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //      http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,7 @@ import (
 
 	"github.com/franela/goblin"
 	"github.com/gin-gonic/gin"
+	"github.com/google/go-github/github"
 )
 
 func Test_github(t *testing.T) {
@@ -52,6 +53,7 @@ func Test_github(t *testing.T) {
 					SkipVerify:  true,
 					PrivateMode: true,
 					Context:     "continuous-integration/test",
+					WebhookHost: "https://ci-webhook.external.cloud",
 				})
 				g.Assert(remote.(*client).URL).Equal("http://localhost:8080")
 				g.Assert(remote.(*client).API).Equal("http://localhost:8080/api/v3/")
@@ -63,6 +65,7 @@ func Test_github(t *testing.T) {
 				g.Assert(remote.(*client).SkipVerify).Equal(true)
 				g.Assert(remote.(*client).PrivateMode).Equal(true)
 				g.Assert(remote.(*client).Context).Equal("continuous-integration/test")
+				g.Assert(remote.(*client).WebhookHost).Equal("https://ci-webhook.external.cloud")
 			})
 			g.It("Should handle malformed url", func() {
 				_, err := New(Opts{URL: "%gh&%ij"})
@@ -121,6 +124,58 @@ func Test_github(t *testing.T) {
 			g.It("Should handle a not found error", func() {
 				_, err := c.Perm(fakeUser, fakeRepoNotFound.Owner, fakeRepoNotFound.Name)
 				g.Assert(err != nil).IsTrue()
+			})
+		})
+
+		g.Describe("Filtering hooks", func() {
+			g.It("Should return nil when no match found", func() {
+				matching := matchingHooks(
+					[]github.Hook{
+						github.Hook{
+							ID: github.Int(9),
+							Config: map[string]interface{}{"url": "https://cj.com"},
+						},
+					},
+					"https://ci.com",
+				)
+
+				g.Assert(matching == nil).IsTrue()
+			})
+			g.It("Should check all the URLs", func() {
+				matching := matchingHooks(
+					[]github.Hook{
+						github.Hook{
+							ID: github.Int(8),
+							Config: map[string]interface{}{"url": "https://ci.com"},
+						},
+						github.Hook{
+							ID: github.Int(9),
+							Config: map[string]interface{}{"url": "https://cj.com"},
+						},
+					},
+					"https://ci.com",
+				)
+
+				g.Assert(matching != nil).IsTrue()
+				g.Assert(*matching.ID).Equal(8)
+			})
+			g.It("Should check all the URLs", func() {
+				matching := matchingHooks(
+					[]github.Hook{
+						github.Hook{
+							ID: github.Int(8),
+							Config: map[string]interface{}{"url": "https://cb.com"},
+						},
+						github.Hook{
+							ID: github.Int(9),
+							Config: map[string]interface{}{"url": "https://cj.com"},
+						},
+					},
+					"https://ci.com", "https://cj.com",
+				)
+
+				g.Assert(matching != nil).IsTrue()
+				g.Assert(*matching.ID).Equal(9)
 			})
 		})
 

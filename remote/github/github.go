@@ -1,11 +1,11 @@
 // Copyright 2018 Drone.IO Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //      http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -50,6 +50,7 @@ type Opts struct {
 	PrivateMode bool     // GitHub is running in private mode.
 	SkipVerify  bool     // Skip ssl verification.
 	MergeRef    bool     // Clone pull requests using the merge ref.
+	WebhookHost string
 }
 
 // New returns a Remote implementation that integrates with a GitHub Cloud or
@@ -76,6 +77,7 @@ func New(opts Opts) (remote.Remote, error) {
 		Machine:     url.Host,
 		Username:    opts.Username,
 		Password:    opts.Password,
+		WebhookHost: opts.WebhookHost,
 	}
 	if opts.URL != defaultURL {
 		remote.URL = strings.TrimSuffix(opts.URL, "/")
@@ -100,6 +102,7 @@ type client struct {
 	PrivateMode bool
 	SkipVerify  bool
 	MergeRef    bool
+	WebhookHost string
 }
 
 // Login authenticates the session and returns the remote user details.
@@ -267,7 +270,7 @@ func (c *client) Deactivate(u *model.User, r *model.Repo, link string) error {
 	if err != nil {
 		return err
 	}
-	match := matchingHooks(hooks, link)
+	match := matchingHooks(hooks, link, c.WebhookHost)
 	if match == nil {
 		return nil
 	}
@@ -343,11 +346,17 @@ func matchingEmail(emails []github.UserEmail, rawurl string) *github.UserEmail {
 }
 
 // helper function to return matching hook.
-func matchingHooks(hooks []github.Hook, rawurl string) *github.Hook {
-	link, err := url.Parse(rawurl)
-	if err != nil {
-		return nil
+func matchingHooks(hooks []github.Hook, rawurls ...string) *github.Hook {
+	links := []*url.URL{}
+
+	for _, rawurl := range rawurls {
+		link, err := url.Parse(rawurl)
+		if err != nil {
+			return nil
+		}
+		links = append(links, link)
 	}
+
 	for _, hook := range hooks {
 		if hook.ID == nil {
 			continue
@@ -361,8 +370,12 @@ func matchingHooks(hooks []github.Hook, rawurl string) *github.Hook {
 			continue
 		}
 		hookurl, err := url.Parse(s)
-		if err == nil && hookurl.Host == link.Host {
-			return &hook
+
+		for _, link := range links {
+			fmt.Println(hookurl.Host, link.Host)
+			if err == nil && hookurl.Host == link.Host {
+				return &hook
+			}
 		}
 	}
 	return nil
@@ -430,6 +443,20 @@ func (c *client) Activate(u *model.User, r *model.Repo, link string) error {
 		return err
 	}
 	client := c.newClientToken(u.Token)
+
+	var webhookLink string
+	if c.WebhookHost != "" {
+		hostURL, _ := url.Parse(c.WebhookHost)
+		linkURL, _ := url.Parse(link)
+
+		linkURL.Host = hostURL.Host
+		linkURL.Scheme = hostURL.Scheme
+
+		webhookLink = linkURL.String()
+	} else {
+		webhookLink = link
+	}
+
 	hook := &github.Hook{
 		Name: github.String("web"),
 		Events: []string{
@@ -438,7 +465,7 @@ func (c *client) Activate(u *model.User, r *model.Repo, link string) error {
 			"deployment",
 		},
 		Config: map[string]interface{}{
-			"url":          link,
+			"url":          webhookLink,
 			"content_type": "form",
 		},
 	}
