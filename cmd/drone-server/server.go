@@ -1,11 +1,11 @@
 // Copyright 2018 Drone.IO Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //      http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -272,6 +272,11 @@ var flags = []cli.Flag{
 		EnvVar: "DRONE_GITHUB_SKIP_VERIFY",
 		Name:   "github-skip-verify",
 		Usage:  "github skip ssl verification",
+	},
+	cli.StringFlag{
+		EnvVar: "DRONE_GITHUB_WEBHOOK_HOST",
+		Name:   "github-webhook-host",
+		Usage:  "github alternative webhook host",
 	},
 	cli.BoolFlag{
 		EnvVar: "DRONE_GOGS",
